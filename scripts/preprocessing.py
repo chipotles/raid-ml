@@ -71,22 +71,38 @@ class ColumnDropper(BaseEstimator, TransformerMixin):
         return X.drop(columns=[c for c in self.columns if c in X.columns])
 
 
-def get_feature_columns(df):
-    """Возвращает (num_cols, cat_cols) для ColumnTransformer."""
-    num_cols = [
-        'tenure', 'MonthlyCharges', 'TotalCharges',
-        'charges_per_month', 'n_services', 'is_new_customer',
-    ]
-    cat_cols = [
-        'gender', 'SeniorCitizen', 'Partner', 'Dependents',
-        'PhoneService', 'MultipleLines', 'InternetService',
-        'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
-        'TechSupport', 'StreamingTV', 'StreamingMovies',
-        'Contract', 'PaperlessBilling', 'PaymentMethod',
-        'tenure_bucket',
-    ]
-    num_cols = [c for c in num_cols if c in df.columns]
-    cat_cols = [c for c in cat_cols if c in df.columns]
+# Фиксированные списки колонок — не зависят от состояния df.
+# Вызывать ПОСЛЕ применения FeatureEngineer (иначе новых колонок ещё нет).
+NUM_COLS = [
+    'tenure', 'MonthlyCharges', 'TotalCharges',
+    'charges_per_month', 'n_services', 'is_new_customer',
+    'SeniorCitizen',   # уже int (0/1) — масштабируем, не кодируем
+]
+
+CAT_COLS = [
+    'gender', 'Partner', 'Dependents',
+    'PhoneService', 'MultipleLines', 'InternetService',
+    'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+    'TechSupport', 'StreamingTV', 'StreamingMovies',
+    'Contract', 'PaperlessBilling', 'PaymentMethod',
+    'tenure_bucket',
+]
+
+
+def get_feature_columns(df=None):
+    """
+    Возвращает (num_cols, cat_cols) для ColumnTransformer.
+
+    Параметр df опциональный — если передан, фильтрует по реально
+    существующим колонкам (удобно при отладке).
+    Вызывать только ПОСЛЕ применения FeatureEngineer к df.
+    """
+    if df is not None:
+        num_cols = [c for c in NUM_COLS if c in df.columns]
+        cat_cols = [c for c in CAT_COLS if c in df.columns]
+    else:
+        num_cols = NUM_COLS.copy()
+        cat_cols = CAT_COLS.copy()
     return num_cols, cat_cols
 
 
@@ -114,15 +130,20 @@ if __name__ == '__main__':
         'PaymentMethod':    ['Electronic check', 'Mailed check', 'Bank transfer (automatic)'],
     })
 
-    out = ColumnDropper().transform(
-            FeatureEngineer().transform(
-                TotalChargesConverter().transform(test_df)
-            )
-          )
+    transformed = FeatureEngineer().transform(
+        TotalChargesConverter().transform(test_df)
+    )
+    out = ColumnDropper().transform(transformed)
+
+    num_cols, cat_cols = get_feature_columns(out)
 
     print("tenure_bucket:    ", out['tenure_bucket'].tolist())
     print("n_services:       ", out['n_services'].tolist())
     print("is_new_customer:  ", out['is_new_customer'].tolist())
     print("charges_per_month:", out['charges_per_month'].round(2).tolist())
     print("customerID удалён:", 'customerID' not in out.columns)
+    print("SeniorCitizen в num_cols:", 'SeniorCitizen' in num_cols)
+    print("SeniorCitizen в cat_cols:", 'SeniorCitizen' in cat_cols)
+    print("\nnum_cols:", num_cols)
+    print("cat_cols:", cat_cols)
     print("\n✓ OK")
