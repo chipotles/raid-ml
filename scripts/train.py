@@ -116,16 +116,25 @@ def cv_metrics(pipe, X, y, cv, label=''):
 
 def find_threshold(y_true, y_proba, recall_target=RECALL_TARGET):
     """
-    Находит наименьший порог, при котором recall >= recall_target,
-    и возвращает (threshold, precision, recall).
+    Среди всех порогов где recall >= recall_target
+    выбирает тот, у которого максимальная precision.
     """
     precision_arr, recall_arr, thresholds = precision_recall_curve(y_true, y_proba)
-    # precision_recall_curve возвращает массивы длиной n+1; thresholds длиной n
+    
+    best_thr, best_prec, best_rec = None, 0.0, 0.0
     for prec, rec, thr in zip(precision_arr[:-1], recall_arr[:-1], thresholds):
-        if rec >= recall_target:
-            return float(thr), float(prec), float(rec)
-    # Если ни один порог не даёт нужный recall — берём минимальный из thresholds
-    return float(thresholds[0]), float(precision_arr[0]), float(recall_arr[0])
+        if rec >= recall_target and prec > best_prec:
+            best_thr  = float(thr)
+            best_prec = float(prec)
+            best_rec  = float(rec)
+
+    if best_thr is None:
+        # Если ни один порог не даёт нужный recall — берём минимальный
+        best_thr  = float(thresholds[0])
+        best_prec = float(precision_arr[0])
+        best_rec  = float(recall_arr[0])
+
+    return best_thr, best_prec, best_rec
 
 
 def plot_pr_curve(y_true, y_proba, threshold, save_path):
